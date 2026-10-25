@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Plan your Sustainability Week Zurich: browse the programme by day and build your personal schedule.">
+<style>html,body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>NHWZ Event Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: single column, sticky header with view switch, day strip + filters, card list; detail in a modal dialog */
+:root {
+  --bg: #f6f7f4;
+  --surface: #ffffff;
+  --fg: #16201b;
+  --muted: #5d6a63;
+  --line: #dde2dc;
+  --accent: #0a6bb0;        /* Zurich tram blue */
+  --accent-soft: #e3eef8;
+  --green: #2f7d4f;
+  --green-soft: #e4f2e9;
+  --danger: #b3261e;
+  --danger-soft: #fbe7e5;
+  --warn: #8a5a00;
+  --warn-soft: #fdf1d8;
+  --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111613; --surface: #1a211d; --fg: #e8ede9; --muted: #9aa8a0; --line: #2c3530;
+    --accent: #5aa9e6; --accent-soft: #16283a; --green: #6cc58f; --green-soft: #17301f;
+    --danger: #f2877e; --danger-soft: #3a1b19; --warn: #e8b85c; --warn-soft: #33280f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111613; --surface: #1a211d; --fg: #e8ede9; --muted: #9aa8a0; --line: #2c3530;
+  --accent: #5aa9e6; --accent-soft: #16283a; --green: #6cc58f; --green-soft: #17301f;
+  --danger: #f2877e; --danger-soft: #3a1b19; --warn: #e8b85c; --warn-soft: #33280f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--f-body); font-size: 16px; line-height: 1.5;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--surface);
+}
+.wrap {
+  max-width: 880px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header */
+header {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 14px; flex-wrap: wrap; }
+.brand { display: flex; flex-direction: column; min-width: 0; }
+.brand small { font-family: var(--f-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.brand h1 { margin: 0; font-family: var(--f-display); font-weight: 800; font-size: clamp(20px, 4vw, 26px); letter-spacing: -.01em; text-wrap: balance; }
+.views { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
+.views button {
+  border: 0; background: transparent; padding: 6px 14px; border-radius: 999px; cursor: pointer;
+  font-family: var(--f-display); font-weight: 700; font-size: 14px; color: var(--muted);
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.views button[aria-selected="true"] { background: var(--accent); color: #fff; }
+.count { font-family: var(--f-mono); font-size: 12px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 0 7px; }
+.views button[aria-selected="true"] .count { background: rgba(255,255,255,.22); color: #fff; }
+
+/* Toolbar */
+.toolbar { display: grid; gap: 12px; padding-block: 16px 8px; }
+.days { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.day {
+  flex: 0 0 auto; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r);
+  padding: 8px 14px; cursor: pointer; text-align: left; min-width: 76px;
+}
+.day b { display: block; font-family: var(--f-display); font-size: 15px; }
+.day span { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.day[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.day[aria-pressed="true"] span { color: var(--accent); }
+.filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 8px; align-items: end; }
+.filters label { display: grid; gap: 4px; font-size: 12px; font-family: var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); min-width: 0; }
+.filters select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 15px; text-transform: none; letter-spacing: 0; font-family: var(--f-body); }
+.linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 8px 4px; font-weight: 600; }
+.result-note { font-size: 14px; color: var(--muted); margin: 0; }
+
+/* Event list */
+main { padding-block: 8px 48px; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.card {
+  display: grid; grid-template-columns: 68px minmax(0, 1fr) auto; gap: 14px; align-items: start;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px;
+  cursor: pointer; transition: border-color .15s;
+}
+.card:hover { border-color: var(--accent); }
+.card.is-cancelled { opacity: .72; }
+.time { font-family: var(--f-mono); font-size: 14px; line-height: 1.3; }
+.time span { display: block; color: var(--muted); font-size: 12px; }
+.card h3 { margin: 0 0 6px; font-family: var(--f-display); font-weight: 700; font-size: 17px; line-height: 1.3; text-wrap: balance; }
+.card.is-cancelled h3 { text-decoration: line-through; text-decoration-thickness: 1px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 14px; color: var(--muted); }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--green-soft); color: var(--green); }
+.chip.lang { background: var(--accent-soft); color: var(--accent); font-family: var(--f-mono); font-weight: 500; }
+.chip.cancel { background: var(--danger-soft); color: var(--danger); }
+.chip.clash { background: var(--warn-soft); color: var(--warn); }
+.save {
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+  display: grid; place-items: center; cursor: pointer; flex: none;
+}
+.save svg { width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 2; }
+.save[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+.save[aria-pressed="true"] svg { fill: #fff; stroke: #fff; }
+
+/* My Week */
+.day-group { display: grid; gap: 10px; margin-bottom: 24px; }
+.day-group h2 { margin: 8px 0 0; font-family: var(--f-display); font-size: 18px; display: flex; gap: 10px; align-items: baseline; }
+.day-group h2 span { font-family: var(--f-mono); font-size: 12px; color: var(--muted); font-weight: 500; }
+.empty { text-align: center; padding: 48px 16px; border: 1px dashed var(--line); border-radius: var(--r); color: var(--muted); }
+.empty h2 { font-family: var(--f-display); color: var(--fg); margin: 0 0 6px; font-size: 20px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 8px; padding: 10px 16px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; text-decoration: none; }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+
+/* Detail dialog */
+dialog {
+  width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; border: 1px solid var(--line);
+  border-radius: 14px; background: var(--surface); color: var(--fg);
+}
+dialog::backdrop { background: rgba(10, 20, 15, .5); }
+.dlg-body { padding: 20px; display: grid; gap: 14px; overflow-y: auto; }
+.dlg-top { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+.dlg-top h2 { margin: 0; font-family: var(--f-display); font-size: 22px; line-height: 1.25; text-wrap: balance; }
+.close { border: 0; background: var(--bg); width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 20px; line-height: 1; flex: none; }
+.banner { background: var(--danger-soft); color: var(--danger); border-radius: 8px; padding: 10px 12px; font-weight: 600; }
+.facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: 15px; }
+.facts dt { font-family: var(--f-mono); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding-top: 2px; }
+.facts dd { margin: 0; }
+.map { width: 100%; aspect-ratio: 16 / 9; max-width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.dlg-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.maplink { font-size: 14px; color: var(--accent); }
+
+footer { font-size: 13px; color: var(--muted); padding-block: 0 32px; }
+
+@media (max-width: 620px) {
+  .filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .card { grid-template-columns: minmax(0, 1fr) auto; }
+  .card .time { grid-column: 1 / -1; display: flex; gap: 8px; }
+  .card .time span { display: inline; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap head-row">
+    <div class="brand">
+      <small>Nachhaltigkeitswoche Zürich · 2027</small>
+      <h1>Sustainability Week Planner</h1>
+    </div>
+    <div class="views" role="tablist" aria-label="View">
+      <button id="tab-programme" role="tab" aria-selected="true" data-view="programme">Programme</button>
+      <button id="tab-myweek" role="tab" aria-selected="false" data-view="myweek">My Week <span class="count" id="saved-count">0</span></button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <section id="view-programme" aria-labelledby="tab-programme">
+    <div class="toolbar">
+      <div class="days" id="days" role="group" aria-label="Day"></div>
+      <div class="filters">
+        <label for="f-campus">Campus<select id="f-campus"></select></label>
+        <label for="f-category">Category<select id="f-category"></select></label>
+        <label for="f-language">Language<select id="f-language"></select></label>
+        <button class="linkbtn" id="reset" type="button">Reset</button>
+      </div>
+      <p class="result-note" id="result-note"></p>
+    </div>
+    <main><ul class="list" id="programme-list"></ul></main>
+  </section>
+
+  <section id="view-myweek" aria-labelledby="tab-myweek" hidden>
+    <main id="myweek"></main>
+  </section>
+
+  <footer>Sample programme for demonstration. Event data lives in one array (<code>EVENTS</code>) with the same fields as the final dataset.</footer>
+</div>
+
+<dialog id="detail" aria-labelledby="d-title">
+  <div class="dlg-body" id="detail-body"></div>
+</dialog>
+
+<script>
+/* ------------------------------------------------------------------
+   Data. Each event: id, day (ISO date), start/end (HH:MM), title,
+   campus, room, address, category, language, cancelled, url, summary.
+   Swap this array for the final dataset (or fetch a JSON file).
+------------------------------------------------------------------- */
+const EVENTS = [
+  { id: "e01", day: "2027-03-01", start: "09:30", end: "10:30", title: "Opening: Zurich's Path to Net Zero 2040", campus: "ETH Zentrum", room: "HG F 30 Audi Max", address: "Rämistrasse 101, 8092 Zürich", category: "Climate", language: "EN", cancelled: false, url: "https://example.org/register/e01", summary: "City officials and researchers outline what the 2040 net-zero target means for buildings, transport and daily life in Zurich." },
+  { id: "e02", day: "2027-03-01", start: "12:15", end: "13:00", title: "Plant-Forward Lunch Lab", campus: "UZH Zentrum", room: "Lichthof", address: "Rämistrasse 71, 8006 Zürich", category: "Food", language: "DE", cancelled: false, url: "https://example.org/register/e02", summary: "Cook and taste three seasonal dishes with the university catering team and learn how menus are planned to cut emissions." },
+  { id: "e03", day: "2027-03-01", start: "16:00", end: "17:30", title: "Repair Café: Bring Your Broken Electronics", campus: "ETH Hönggerberg", room: "HPH G 2", address: "Stefano-Franscini-Platz 5, 8093 Zürich", category: "Circular Economy", language: "EN", cancelled: false, url: "https://example.org/register/e03", summary: "Volunteer engineers help you fix phones, lamps and headphones. Learn basic soldering and why repairability matters." },
+  { id: "e04", day: "2027-03-02", start: "10:00", end: "11:30", title: "Wild Bees on Campus: Guided Walk", campus: "UZH Irchel", room: "Meeting point: Irchelpark pond", address: "Winterthurerstrasse 190, 8057 Zürich", category: "Biodiversity", language: "DE", cancelled: false, url: "https://example.org/register/e04", summary: "A biologist shows the nesting aids and meadows that support more than 80 wild bee species on the Irchel campus." },
+  { id: "e05", day: "2027-03-02", start: "13:00", end: "14:00", title: "Shared Mobility Panel: Bikes, Trams and Trust", campus: "ETH Zentrum", room: "ML D 28", address: "Sonneggstrasse 3, 8092 Zürich", category: "Mobility", language: "EN", cancelled: true, url: "https://example.org/register/e05", summary: "Operators and planners debate how to make car-free commuting the easiest choice in the Zurich region." },
+  { id: "e06", day: "2027-03-02", start: "13:30", end: "15:00", title: "Climate Anxiety: Turning Worry into Action", campus: "UZH Zentrum", room: "KOL F 101", address: "Rämistrasse 71, 8006 Zürich", category: "Wellbeing", language: "EN", cancelled: false, url: "https://example.org/register/e06", summary: "A psychologist-led workshop with practical tools to stay engaged without burning out." },
+  { id: "e07", day: "2027-03-02", start: "18:00", end: "19:30", title: "Clothing Swap Evening", campus: "ETH Hönggerberg", room: "HIL Foyer", address: "Stefano-Franscini-Platz 5, 8093 Zürich", category: "Circular Economy", language: "DE", cancelled: false, url: "https://example.org/register/e07", summary: "Bring up to five clean garments and leave with new favourites. Leftovers are donated to a local charity." },
+  { id: "e08", day: "2027-03-03", start: "09:00", end: "12:00", title: "Hackathon Kick-off: Open Data for Greener Cities", campus: "ETH Zentrum", room: "CAB G 61", address: "Universitätstrasse 6, 8092 Zürich", category: "Climate", language: "EN", cancelled: false, url: "https://example.org/register/e08", summary: "Teams get access to Zurich's open energy and transport datasets and pitch ideas for a 48-hour build." },
+  { id: "e09", day: "2027-03-03", start: "11:00", end: "12:00", title: "Food Waste in the Mensa: What the Numbers Say", campus: "UZH Irchel", room: "Y15 G 19", address: "Winterthurerstrasse 190, 8057 Zürich", category: "Food", language: "EN", cancelled: false, url: "https://example.org/register/e09", summary: "Results from a semester of weighing plate waste, and the menu changes that halved it." },
+  { id: "e10", day: "2027-03-03", start: "17:00", end: "18:30", title: "Podiumsdiskussion: Kreislaufwirtschaft im Bau", campus: "ETH Hönggerberg", room: "HIT E 51", address: "Stefano-Franscini-Platz 5, 8093 Zürich", category: "Circular Economy", language: "DE", cancelled: false, url: "https://example.org/register/e10", summary: "Architects and engineers discuss reusing building components and the regulations that hold it back." },
+  { id: "e11", day: "2027-03-04", start: "10:15", end: "11:15", title: "Urban Trees and Summer Heat", campus: "UZH Irchel", room: "Y03 G 85", address: "Winterthurerstrasse 190, 8057 Zürich", category: "Biodiversity", language: "EN", cancelled: false, url: "https://example.org/register/e11", summary: "How street trees cool Zurich's hottest neighbourhoods, with live thermal-camera images from last summer." },
+  { id: "e12", day: "2027-03-04", start: "12:30", end: "13:30", title: "E-Bike Commuting Clinic", campus: "ETH Zentrum", room: "Polyterrasse", address: "Leonhardstrasse 34, 8092 Zürich", category: "Mobility", language: "DE", cancelled: false, url: "https://example.org/register/e12", summary: "Test rides, route planning tips and a free safety check for your own bike." },
+  { id: "e13", day: "2027-03-04", start: "16:30", end: "18:00", title: "Mindful Walk along the Limmat", campus: "UZH Zentrum", room: "Meeting point: Hauptgebäude entrance", address: "Rämistrasse 71, 8006 Zürich", category: "Wellbeing", language: "EN", cancelled: false, url: "https://example.org/register/e13", summary: "A slow, guided walk to the river with short reflection stops. Suitable for all fitness levels." },
+  { id: "e14", day: "2027-03-05", start: "09:30", end: "11:00", title: "Hackathon Final Pitches", campus: "ETH Zentrum", room: "CAB G 61", address: "Universitätstrasse 6, 8092 Zürich", category: "Climate", language: "EN", cancelled: false, url: "https://example.org/register/e14", summary: "Teams present their prototypes to a jury from the city, industry and the student body." },
+  { id: "e15", day: "2027-03-05", start: "10:30", end: "11:30", title: "Saisonal einkaufen: Markt-Tour", campus: "UZH Zentrum", room: "Meeting point: Helvetiaplatz", address: "Helvetiaplatz, 8004 Zürich", category: "Food", language: "DE", cancelled: true, url: "https://example.org/register/e15", summary: "Eine Tour über den Wochenmarkt mit Tipps zu regionalem und saisonalem Einkauf." },
+  { id: "e16", day: "2027-03-05", start: "17:00", end: "20:00", title: "Closing Party: Zero-Waste Apéro", campus: "ETH Hönggerberg", room: "HPL Terrace", address: "Stefano-Franscini-Platz 5, 8093 Zürich", category: "Wellbeing", language: "EN", cancelled: false, url: "https://example.org/register/e16", summary: "Celebrate the week with local food, reusable tableware and music from student bands." }
+];
+
+const STORAGE_KEY = "nhwz.savedEvents";
+const ALL = "all";
+
+/* ---------- Saved events (localStorage, fails safely) ---------- */
+function loadSaved() {
+  try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY)) || []); }
+  catch { return new Set(); }
+}
+function persistSaved() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...state.saved])); } catch { /* storage unavailable: keep in memory */ }
+}
+
+const state = {
+  view: "programme",
+  day: EVENTS[0].day,
+  campus: ALL, category: ALL, language: ALL,
+  saved: loadSaved()
+};
+
+/* ---------- Helpers ---------- */
+const $ = (sel) => document.querySelector(sel);
+const byId = Object.fromEntries(EVENTS.map((e) => [e.id, e]));
+const unique = (key) => [...new Set(EVENTS.map((e) => e[key]))].sort();
+const days = unique("day");
+const toMin = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+const byTime = (a, b) => a.day.localeCompare(b.day) || toMin(a.start) - toMin(b.start);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtDay = (iso, opts) => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", opts);
+const langName = { EN: "English", DE: "German" };
+
+/* Saved, non-cancelled events on the same day whose times overlap */
+function clashesFor(ev) {
+  if (ev.cancelled) return [];
+  return [...state.saved].map((id) => byId[id]).filter((o) =>
+    o && o.id !== ev.id && !o.cancelled && o.day === ev.day &&
+    toMin(o.start) < toMin(ev.end) && toMin(ev.start) < toMin(o.end));
+}
+
+const bookmarkSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>';
+
+function cardHtml(ev, { showClash = false } = {}) {
+  const saved = state.saved.has(ev.id);
+  const clashes = showClash ? clashesFor(ev) : [];
+  return `
+  <li class="card${ev.cancelled ? " is-cancelled" : ""}" data-id="${ev.id}" tabindex="0" aria-label="${esc(ev.title)}, ${ev.start} to ${ev.end}">
+    <div class="time">${ev.start}<span>${ev.end}</span></div>
+    <div>
+      <h3>${esc(ev.title)}</h3>
+      <div class="meta">
+        <span>${esc(ev.campus)}</span>
+        <span class="chip">${esc(ev.category)}</span>
+        <span class="chip lang" title="${langName[ev.language] || ev.language}">${ev.language}</span>
+        ${ev.cancelled ? '<span class="chip cancel">Cancelled</span>' : ""}
+        ${clashes.length ? `<span class="chip clash">Overlaps with ${esc(clashes.map((c) => c.start + " " + c.title).join(", "))}</span>` : ""}
+      </div>
+    </div>
+    <button class="save" type="button" data-save="${ev.id}" aria-pressed="${saved}" aria-label="${saved ? "Remove from" : "Add to"} My Week">${bookmarkSvg}</button>
+  </li>`;
+}
+
+/* ---------- Renderers ---------- */
+function fillSelect(sel, key, label) {
+  sel.innerHTML = `<option value="${ALL}">All ${label}</option>` +
+    unique(key).map((v) => `<option value="${esc(v)}">${esc(key === "language" ? (langName[v] || v) : v)}</option>`).join("");
+}
+
+function renderDays() {
+  $("#days").innerHTML = days.map((d) => `
+    <button class="day" type="button" data-day="${d}" aria-pressed="${d === state.day}">
+      <b>${fmtDay(d, { weekday: "short" })}</b><span>${fmtDay(d, { day: "numeric", month: "short" })}</span>
+    </button>`).join("");
+}
+
+function renderProgramme() {
+  const list = EVENTS.filter((e) =>
+    e.day === state.day &&
+    (state.campus === ALL || e.campus === state.campus) &&
+    (state.category === ALL || e.category === state.category) &&
+    (state.language === ALL || e.language === state.language)
+  ).sort(byTime);
+
+  const filtered = state.campus !== ALL || state.category !== ALL || state.language !== ALL;
+  $("#reset").hidden = !filtered;
+  $("#result-note").textContent = `${list.length} event${list.length === 1 ? "" : "s"} on ${fmtDay(state.day, { weekday: "long", day: "numeric", month: "long" })}`;
+  $("#programme-list").innerHTML = list.length
+    ? list.map((e) => cardHtml(e)).join("")
+    : `<li class="empty"><h2>No events match these filters</h2><p>Try another day or reset the filters.</p></li>`;
+}
+
+function renderMyWeek() {
+  const saved = [...state.saved].map((id) => byId[id]).filter(Boolean).sort(byTime);
+  if (!saved.length) {
+    $("#myweek").innerHTML = `
+      <div class="empty">
+        <h2>Your week is empty</h2>
+        <p>Tap the bookmark on any event in the programme to add it here.</p>
+        <button class="btn" type="button" data-goto="programme">Browse the programme</button>
+      </div>`;
+    return;
+  }
+  const groups = days.map((d) => [d, saved.filter((e) => e.day === d)]).filter(([, evs]) => evs.length);
+  $("#myweek").innerHTML = groups.map(([d, evs]) => `
+    <section class="day-group">
+      <h2>${fmtDay(d, { weekday: "long" })} <span>${fmtDay(d, { day: "numeric", month: "long" })} · ${evs.length} saved</span></h2>
+      <ul class="list">${evs.map((e) => cardHtml(e, { showClash: true })).join("")}</ul>
+    </section>`).join("");
+}
+
+function renderCount() { $("#saved-count").textContent = state.saved.size; }
+
+function render() {
+  const isProg = state.view === "programme";
+  $("#view-programme").hidden = !isProg;
+  $("#view-myweek").hidden = isProg;
+  $("#tab-programme").setAttribute("aria-selected", isProg);
+  $("#tab-myweek").setAttribute("aria-selected", !isProg);
+  renderCount();
+  isProg ? renderProgramme() : renderMyWeek();
+}
+
+/* ---------- Detail view ---------- */
+function openDetail(id) {
+  const ev = byId[id];
+  if (!ev) return;
+  const saved = state.saved.has(ev.id);
+  const q = encodeURIComponent(ev.address);
+  $("#detail-body").innerHTML = `
+    <div class="dlg-top">
+      <h2 id="d-title">${esc(ev.title)}</h2>
+      <button class="close" type="button" data-close aria-label="Close">×</button>
+    </div>
+    ${ev.cancelled ? '<div class="banner" role="status">This event has been cancelled.</div>' : ""}
+    <dl class="facts">
+      <dt>When</dt><dd>${fmtDay(ev.day, { weekday: "long", day: "numeric", month: "long" })}, ${ev.start}–${ev.end}</dd>
+      <dt>Where</dt><dd>${esc(ev.campus)} · ${esc(ev.room)}<br>${esc(ev.address)}</dd>
+      <dt>Topic</dt><dd>${esc(ev.category)}</dd>
+      <dt>Language</dt><dd>${langName[ev.language] || ev.language}</dd>
+    </dl>
+    <p style="margin:0">${esc(ev.summary)}</p>
+    <iframe class="map" title="Map of ${esc(ev.address)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+      src="https://maps.google.com/maps?q=${q}&z=16&output=embed"></iframe>
+    <a class="maplink" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Open in Google Maps</a>
+    <div class="dlg-actions">
+      ${ev.cancelled ? "" : `<a class="btn" href="${esc(ev.url)}" target="_blank" rel="noopener">Register</a>`}
+      <button class="btn ghost" type="button" data-save="${ev.id}" aria-pressed="${saved}">${saved ? "Remove from My Week" : "Add to My Week"}</button>
+    </div>`;
+  const dlg = $("#detail");
+  if (!dlg.open) dlg.showModal();
+}
+
+/* ---------- Events ---------- */
+function toggleSaved(id) {
+  state.saved.has(id) ? state.saved.delete(id) : state.saved.add(id);
+  persistSaved();
+  render();
+  if ($("#detail").open) openDetail(id);
+}
+
+function setView(view) {
+  state.view = view;
+  try { history.replaceState(null, "", "#" + view); } catch {}
+  render();
+}
+
+document.addEventListener("click", (e) => {
+  const save = e.target.closest("[data-save]");
+  if (save) { e.stopPropagation(); toggleSaved(save.dataset.save); return; }
+  const tab = e.target.closest("[data-view]");
+  if (tab) { setView(tab.dataset.view); return; }
+  const go = e.target.closest("[data-goto]");
+  if (go) { setView(go.dataset.goto); return; }
+  const day = e.target.closest("[data-day]");
+  if (day) { state.day = day.dataset.day; renderDays(); renderProgramme(); return; }
+  if (e.target.closest("[data-close]")) { $("#detail").close(); return; }
+  const card = e.target.closest(".card");
+  if (card) openDetail(card.dataset.id);
+});
+
+document.addEventListener("keydown", (e) => {
+  const card = e.target.closest && e.target.closest(".card");
+  if (card && (e.key === "Enter" || e.key === " ") && e.target === card) { e.preventDefault(); openDetail(card.dataset.id); }
+});
+
+// Close the dialog when clicking the backdrop
+$("#detail").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+
+for (const [id, key] of [["#f-campus", "campus"], ["#f-category", "category"], ["#f-language", "language"]]) {
+  $(id).addEventListener("change", (e) => { state[key] = e.target.value; renderProgramme(); });
+}
+$("#reset").addEventListener("click", () => {
+  state.campus = state.category = state.language = ALL;
+  for (const id of ["#f-campus", "#f-category", "#f-language"]) $(id).value = ALL;
+  renderProgramme();
+});
+
+/* ---------- Init ---------- */
+fillSelect($("#f-campus"), "campus", "campuses");
+fillSelect($("#f-category"), "category", "categories");
+fillSelect($("#f-language"), "language", "languages");
+renderDays();
+if (location.hash === "#myweek") state.view = "myweek";
+render();
+</script>
+
+</body>
+</html>
